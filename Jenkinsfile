@@ -68,10 +68,13 @@ pipeline {
                     )]) {
 
                         sh """
+                        echo "Building Docker image..."
                         docker build -t preethist/devops-app:latest .
 
+                        echo "Logging into Docker Hub..."
                         echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
 
+                        echo "Pushing image..."
                         docker push preethist/devops-app:latest
                         """
                     }
