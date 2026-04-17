@@ -12,12 +12,12 @@ pipeline {
         }
         stage('Lint') {
             steps {
-                sh 'echo "Lint check passed ✅"'
+                sh 'echo "✅ Lint check passed"'
             }
         }
         stage('Unit Test') {
             steps {
-                sh 'echo "Unit tests passed ✅"'
+                sh 'echo "✅ Unit tests passed"'
             }
         }
         stage('SonarQube Analysis') {
@@ -34,26 +34,27 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 script {
-                    def response = sh(
+                    def status = sh(
                         script: '''curl -s -u $SONAR_TOKEN: \
                           "http://localhost:9000/api/qualitygates/project_status?projectKey=devops-project" \
                           | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['projectStatus']['status'])"
                         ''',
                         returnStdout: true
                     ).trim()
-                    echo "Quality Gate Status: ${response}"
-                    if (response != 'OK') {
-                        error("❌ Strict Production Gate FAILED! Bugs or Vulnerabilities found.")
+                    echo "Quality Gate: ${status}"
+                    if (status != 'OK') {
+                        error("❌ Strict_Production_Gate FAILED!")
                     }
-                    echo "✅ Strict Production Gate PASSED!"
+                    echo "✅ Strict_Production_Gate PASSED!"
                 }
             }
         }
         stage('Docker Build & Push') {
             steps {
-                sh 'docker build -t preethist/devops-app:${BUILD_NUMBER} .'
-                sh 'docker tag preethist/devops-app:${BUILD_NUMBER} preethist/devops-app:latest'
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
+                sh "docker build -t ${DOCKER_IMAGE} ."
+                sh "docker tag ${DOCKER_IMAGE} preethist/devops-app:latest"
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
@@ -66,11 +67,11 @@ pipeline {
         }
         stage('Deploy to Kubernetes') {
             steps {
-                sh '''
+                sh """
                     kubectl set image deployment/devops-app \
                       devops-app=preethist/devops-app:${BUILD_NUMBER}
                     kubectl rollout status deployment/devops-app
-                '''
+                """
             }
         }
     }
