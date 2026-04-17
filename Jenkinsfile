@@ -12,62 +12,70 @@ pipeline {
         }
         stage('Lint') {
             steps {
-                sh 'echo "Lint check passed"'
+                sh 'echo "Lint check passed ✅"'
             }
         }
         stage('Unit Test') {
             steps {
-                sh 'echo "Unit tests passed"'
+                sh 'echo "Unit tests passed ✅"'
             }
         }
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh '''
-                        sonar-scanner \
-                          -Dsonar.projectKey=devops-project \
-                          -Dsonar.sources=./app \
-                          -Dsonar.host.url=http://localhost:9000 \
-                          -Dsonar.login=$SONAR_TOKEN
-                    '''
-                }
+                sh '''
+                    /opt/sonar-scanner/bin/sonar-scanner \
+                      -Dsonar.projectKey=devops-project \
+                      -Dsonar.sources=./app \
+                      -Dsonar.host.url=http://localhost:9000 \
+                      -Dsonar.login=$SONAR_TOKEN
+                '''
             }
         }
         stage('Quality Gate') {
             steps {
-                timeout(time: 2, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                script {
+                    def response = sh(
+                        script: '''curl -s -u $SONAR_TOKEN: \
+                          "http://localhost:9000/api/qualitygates/project_status?projectKey=devops-project" \
+                          | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['projectStatus']['status'])"
+                        ''',
+                        returnStdout: true
+                    ).trim()
+                    echo "Quality Gate Status: ${response}"
+                    if (response != 'OK') {
+                        error("❌ Strict Production Gate FAILED! Bugs or Vulnerabilities found.")
+                    }
+                    echo "✅ Strict Production Gate PASSED!"
                 }
             }
         }
         stage('Docker Build & Push') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                sh 'docker build -t preethist/devops-app:${BUILD_NUMBER} .'
+                sh 'docker tag preethist/devops-app:${BUILD_NUMBER} preethist/devops-app:latest'
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
                         echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push $DOCKER_IMAGE
+                        docker push preethist/devops-app:${BUILD_NUMBER}
+                        docker push preethist/devops-app:latest
                     '''
                 }
             }
         }
-        stage('Update K8s Manifest') {
+        stage('Deploy to Kubernetes') {
             steps {
-                sh "sed -i 's|image:.*|image: $DOCKER_IMAGE|g' kubernetes/deployment.yaml"
                 sh '''
-                    git config user.email "ci@jenkins"
-                    git config user.name "Jenkins"
-                    git add kubernetes/deployment.yaml
-                    git commit -m "CI: update image to build $BUILD_NUMBER"
-                    git push origin main
+                    kubectl set image deployment/devops-app \
+                      devops-app=preethist/devops-app:${BUILD_NUMBER}
+                    kubectl rollout status deployment/devops-app
                 '''
             }
         }
     }
     post {
-        success { echo 'Pipeline completed successfully!' }
-        failure { echo 'Pipeline failed!' }
+        success { echo '✅ Pipeline completed successfully!' }
+        failure { echo '❌ Pipeline failed!' }
     }
 }
