@@ -2,6 +2,7 @@ pipeline {
     agent any
     environment {
         SONAR_TOKEN = credentials('sonar-token')
+        DOCKER_USER = credentials('dockerhub-creds')
     }
     stages {
         stage('Checkout') {
@@ -21,20 +22,20 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 script {
-                    def qg = sh(script: 'curl -s -u $SONAR_TOKEN: "http://localhost:9000/api/qualitygates/project_status?projectKey=devops-project" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[\'projectStatus\'][\'status\'])"', returnStdout: true).trim()
-                    echo "Quality Gate: ${qg}"
-                    if (qg != 'OK') { error('Strict_Production_Gate FAILED!') }
+                    def qg = sh(
+                        script: 'curl -s -u $SONAR_TOKEN: "http://localhost:9000/api/qualitygates/project_status?projectKey=devops-project" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[\'projectStatus\'][\'status\'])"',
+                        returnStdout: true
+                    ).trim()
+                    if (qg != 'OK') { error('Gate FAILED') }
                     echo 'Strict_Production_Gate PASSED!'
                 }
             }
         }
         stage('Docker Build and Push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DUSER', passwordVariable: 'DPASS')]) {
-                    sh 'docker build -t preethist/devops-app:latest .'
-                    sh 'echo $DPASS | docker login -u $DUSER --password-stdin'
-                    sh 'docker push preethist/devops-app:latest'
-                }
+                sh 'docker build -t preethist/devops-app:latest .'
+                sh 'echo $DOCKER_USER_PSW | docker login -u $DOCKER_USER_USR --password-stdin'
+                sh 'docker push preethist/devops-app:latest'
             }
         }
         stage('Deploy to Kubernetes') {
