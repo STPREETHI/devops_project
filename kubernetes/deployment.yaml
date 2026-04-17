@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: devops-app
-        image: stpreethi/devops-app:latest
+        image: preethist/devops-app:latest
         ports:
         - containerPort: 80
         resources:

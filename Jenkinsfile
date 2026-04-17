@@ -2,7 +2,7 @@ pipeline {
     agent any
     environment {
         SONAR_TOKEN = credentials('sonar-token')
-        DOCKER_IMAGE = "stpreethi/devops-app:${BUILD_NUMBER}"
+        DOCKER_IMAGE = "preethist/devops-app:${BUILD_NUMBER}"
     }
     stages {
         stage('Checkout') {
