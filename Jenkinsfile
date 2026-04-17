@@ -2,23 +2,16 @@ pipeline {
     agent any
     environment {
         SONAR_TOKEN = credentials('sonar-token')
-        DOCKER_IMAGE = "preethist/devops-app:${BUILD_NUMBER}"
     }
     stages {
         stage('Checkout') {
-            steps {
-                checkout scm
-            }
+            steps { checkout scm }
         }
         stage('Lint') {
-            steps {
-                sh 'echo "✅ Lint check passed"'
-            }
+            steps { sh 'echo "Lint check passed"' }
         }
         stage('Unit Test') {
-            steps {
-                sh 'echo "✅ Unit tests passed"'
-            }
+            steps { sh 'echo "Unit tests passed"' }
         }
         stage('SonarQube Analysis') {
             steps {
@@ -34,49 +27,45 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 script {
-                    def status = sh(
+                    def response = sh(
                         script: '''curl -s -u $SONAR_TOKEN: \
                           "http://localhost:9000/api/qualitygates/project_status?projectKey=devops-project" \
                           | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['projectStatus']['status'])"
                         ''',
                         returnStdout: true
                     ).trim()
-                    echo "Quality Gate: ${status}"
-                    if (status != 'OK') {
-                        error("❌ Strict_Production_Gate FAILED!")
+                    echo "Quality Gate: ${response}"
+                    if (response != 'OK') {
+                        error("Strict_Production_Gate FAILED!")
                     }
-                    echo "✅ Strict_Production_Gate PASSED!"
+                    echo "Strict_Production_Gate PASSED!"
                 }
             }
         }
-        stage('Docker Build & Push') {
+        stage('Docker Build and Push') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE} ."
-                sh "docker tag ${DOCKER_IMAGE} preethist/devops-app:latest"
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
                     usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push preethist/devops-app:${BUILD_NUMBER}
-                        docker push preethist/devops-app:latest
-                    '''
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                    sh 'docker build -t preethist/devops-app:${BUILD_NUMBER} .'
+                    sh 'docker tag preethist/devops-app:${BUILD_NUMBER} preethist/devops-app:latest'
+                    sh 'docker push preethist/devops-app:${BUILD_NUMBER}'
+                    sh 'docker push preethist/devops-app:latest'
                 }
             }
         }
         stage('Deploy to Kubernetes') {
             steps {
-                sh """
-                    kubectl set image deployment/devops-app \
-                      devops-app=preethist/devops-app:${BUILD_NUMBER}
-                    kubectl rollout status deployment/devops-app
-                """
+                sh 'kubectl set image deployment/devops-app devops-app=preethist/devops-app:${BUILD_NUMBER}'
+                sh 'kubectl rollout status deployment/devops-app'
             }
         }
     }
     post {
-        success { echo '✅ Pipeline completed successfully!' }
-        failure { echo '❌ Pipeline failed!' }
+        success { echo 'Pipeline completed successfully!' }
+        failure { echo 'Pipeline failed!' }
     }
 }
