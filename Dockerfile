@@ -1,11 +1,14 @@
-# Stage 1: Build (using nginx alpine - optimized & small)
-FROM nginx:alpine AS builder
-# Copy static files
-COPY app/ /usr/share/nginx/html/
-
-# Stage 2: Production
+# Lightweight nginx base image
 FROM nginx:alpine
-# Copy from builder (layer cache optimization)
-COPY --from=builder /usr/share/nginx/html/ /usr/share/nginx/html/
+
+# Remove default nginx static content
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy your application files
+COPY ./app /usr/share/nginx/html
+
+# Expose port 80
 EXPOSE 80
+
+# Start nginx in foreground (required for containers)
 CMD ["nginx", "-g", "daemon off;"]
