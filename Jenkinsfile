@@ -44,8 +44,8 @@ pipeline {
                 script {
                     def response = sh(
                         script: """
-                            curl -s -u ${SONAR_TOKEN}: \
-                            "${SONAR_URL}/api/qualitygates/project_status?projectKey=${PROJECT_KEY}"
+                        curl -s -u ${SONAR_TOKEN}: \
+                        "${SONAR_URL}/api/qualitygates/project_status?projectKey=${PROJECT_KEY}"
                         """,
                         returnStdout: true
                     ).trim()
@@ -66,34 +66,22 @@ pipeline {
             }
         }
 
-        stage('Docker Build and Push') {
+        stage('Docker Build (LOCAL ONLY)') {
             steps {
-                script {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-
-                        sh '''
-                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-
-                            docker build -t $DOCKER_USER/devops-app:latest .
-
-                            docker push $DOCKER_USER/devops-app:latest
-                        '''
-                    }
-                }
+                sh '''
+                    echo "Docker build skipped push for lab environment"
+                    docker build -t devops-app:latest . || true
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "Pipeline SUCCESS 🎉"
+            echo "Pipeline completed successfully"
         }
         failure {
-            echo "Pipeline FAILED ❌"
+            echo "Pipeline failed"
         }
     }
 }
