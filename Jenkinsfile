@@ -42,28 +42,26 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 script {
-                    timeout(time: 2, unit: 'MINUTES') {
-                        def response = sh(
-                            script: """
-                                curl -s -u ${SONAR_TOKEN}: \
-                                "${SONAR_URL}/api/qualitygates/project_status?projectKey=${PROJECT_KEY}"
-                            """,
-                            returnStdout: true
-                        ).trim()
+                    def response = sh(
+                        script: """
+                            curl -s -u ${SONAR_TOKEN}: \
+                            "${SONAR_URL}/api/qualitygates/project_status?projectKey=${PROJECT_KEY}"
+                        """,
+                        returnStdout: true
+                    ).trim()
 
-                        def status = sh(
-                            script: """echo '${response}' | python3 -c "import sys,json; print(json.load(sys.stdin)['projectStatus']['status'])" """,
-                            returnStdout: true
-                        ).trim()
+                    def status = sh(
+                        script: """echo '${response}' | python3 -c "import sys,json; print(json.load(sys.stdin)['projectStatus']['status'])" """,
+                        returnStdout: true
+                    ).trim()
 
-                        echo "Quality Gate Status: ${status}"
+                    echo "Quality Gate Status: ${status}"
 
-                        if (status != "OK") {
-                            error("❌ Quality Gate FAILED")
-                        }
-
-                        echo "✅ Quality Gate PASSED"
+                    if (status != "OK") {
+                        error("Quality Gate FAILED")
                     }
+
+                    echo "Quality Gate PASSED"
                 }
             }
         }
@@ -77,36 +75,25 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
 
-                        sh """
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
 
                             docker build -t $DOCKER_USER/devops-app:latest .
 
                             docker push $DOCKER_USER/devops-app:latest
-                        """
+                        '''
                     }
                 }
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh """
-                    kubectl set image deployment/devops-app \
-                    devops-app=$DOCKER_USER/devops-app:latest || true
-
-                    kubectl rollout status deployment/devops-app
-                """
             }
         }
     }
 
     post {
         success {
-            echo "🎉 Pipeline completed successfully!"
+            echo "Pipeline SUCCESS 🎉"
         }
         failure {
-            echo "❌ Pipeline failed!"
+            echo "Pipeline FAILED ❌"
         }
     }
 }
